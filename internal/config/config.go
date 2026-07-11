@@ -11,8 +11,9 @@ import (
 )
 
 type Config struct {
-	Address      string
-	RedisAddress string
+	Address        string
+	RedisAddress   string
+	MetricsAddress string
 
 	AdminEmail        string
 	AdminPasswordHash string
@@ -23,11 +24,12 @@ type Config struct {
 
 func Load() (Config, error) {
 	config := Config{
-		Address:      envOrDefault("APP_ADDR", "127.0.0.1:8080"),
-		RedisAddress: strings.TrimSpace(os.Getenv("REDIS_ADDR")),
-		AdminEmail:   strings.ToLower(strings.TrimSpace(os.Getenv("ADMIN_EMAIL"))),
-		SessionTTL:   12 * time.Hour,
-		CookieSecure: false,
+		Address:        envOrDefault("APP_ADDR", "127.0.0.1:8080"),
+		RedisAddress:   strings.TrimSpace(os.Getenv("REDIS_ADDR")),
+		MetricsAddress: envOrDefault("METRICS_ADDR", "127.0.0.1:9090"),
+		AdminEmail:     strings.ToLower(strings.TrimSpace(os.Getenv("ADMIN_EMAIL"))),
+		SessionTTL:     12 * time.Hour,
+		CookieSecure:   false,
 	}
 
 	config.AdminPasswordHash = strings.TrimSpace(

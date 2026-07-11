@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	appmetrics "docker-manager-backend/internal/metrics"
 	"docker-manager-backend/internal/models"
 	"docker-manager-backend/internal/response"
 
@@ -63,6 +64,10 @@ func (h *DockerHandler) ContainerStats(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		valid = append(valid, item)
+		appmetrics.CPU.WithLabelValues(item.ID, item.Name).Set(item.CPUPercent)
+		appmetrics.Memory.WithLabelValues(item.ID, item.Name).Set(float64(item.MemoryUsage))
+		appmetrics.NetworkRX.WithLabelValues(item.ID, item.Name).Set(float64(item.NetworkRX))
+		appmetrics.NetworkTX.WithLabelValues(item.ID, item.Name).Set(float64(item.NetworkTX))
 		total.CPUPercent += item.CPUPercent
 		total.MemoryUsage += item.MemoryUsage
 		// Containers without an explicit memory limit report the shared

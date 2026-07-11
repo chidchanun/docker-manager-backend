@@ -10,12 +10,15 @@ import (
 	"syscall"
 	"time"
 
+	"docker-manager-backend/internal/audit"
 	"docker-manager-backend/internal/auth"
 	"docker-manager-backend/internal/config"
 	"docker-manager-backend/internal/dockerclient"
 	"docker-manager-backend/internal/handler"
+	appmetrics "docker-manager-backend/internal/metrics"
 	"docker-manager-backend/internal/middleware"
 	"docker-manager-backend/internal/response"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type HealthResponse struct {
@@ -42,6 +45,8 @@ func main() {
 		appConfig.RedisAddress,
 	)
 	defer sessionManager.Close()
+	auditStore := audit.New(appConfig.RedisAddress)
+	defer auditStore.Close()
 
 	authHandler := handler.NewAuthHandler(
 		appConfig.AdminEmail,
@@ -56,6 +61,8 @@ func main() {
 	authMiddleware := middleware.NewAuthMiddleware(
 		sessionManager,
 	)
+	auditMiddleware := middleware.NewAuditMiddleware(auditStore)
+	auditHandler := handler.NewAuditHandler(auditStore)
 	loginLimiter := middleware.NewLoginRateLimiter(10, 15*time.Minute)
 
 	mux := http.NewServeMux()
@@ -81,9 +88,9 @@ func main() {
 	) {
 		mux.Handle(
 			pattern,
-			authMiddleware.Require(
+			authMiddleware.Require(auditMiddleware.Record(
 				http.HandlerFunc(handlerFunc),
-			),
+			)),
 		)
 	}
 
@@ -92,6 +99,7 @@ func main() {
 		"GET /api/auth/me",
 		authHandler.Me,
 	)
+	protected("GET /api/audit", auditHandler.List)
 
 	protected(
 		"POST /api/auth/logout",
@@ -145,12 +153,18 @@ func main() {
 
 	server := &http.Server{
 		Addr:              appConfig.Address,
-		Handler:           middleware.SecurityHeaders(mux),
+		Handler:           appmetrics.HTTP(middleware.SecurityHeaders(mux)),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      75 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
+	metricsServer := &http.Server{Addr: appConfig.MetricsAddress, Handler: promhttp.Handler(), ReadHeaderTimeout: 5 * time.Second}
+	go func() {
+		if err := metricsServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Printf("metrics server error: %v", err)
+		}
+	}()
 
 	go func() {
 		log.Printf(
@@ -185,6 +199,7 @@ func main() {
 	if err := server.Shutdown(ctx); err != nil {
 		log.Printf("Server shutdown error: %v", err)
 	}
+	_ = metricsServer.Shutdown(ctx)
 
 	log.Println("Server stopped")
 }

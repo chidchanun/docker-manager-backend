@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"docker-manager-backend/internal/auth"
+	appmetrics "docker-manager-backend/internal/metrics"
 	"docker-manager-backend/internal/models"
 	"docker-manager-backend/internal/response"
 
@@ -62,6 +63,7 @@ func (h *AuthHandler) Login(
 	) == nil
 
 	if !emailMatches || !passwordMatches {
+		appmetrics.LoginFailures.Inc()
 		response.Error(
 			w,
 			http.StatusUnauthorized,
