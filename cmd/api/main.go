@@ -131,6 +131,7 @@ func main() {
 		"GET /api/containers/{id}/logs",
 		dockerHandler.ContainerLogs,
 	)
+	protected("GET /api/containers/{id}/logs/stream", dockerHandler.ContainerLogsStream)
 
 	protected(
 		"POST /api/containers/{id}/start",
@@ -150,6 +151,7 @@ func main() {
 	protected("POST /api/containers/{id}/unpause", dockerHandler.UnpauseContainer)
 	protected("POST /api/containers/{id}/kill", dockerHandler.KillContainer)
 	protected("DELETE /api/containers/{id}", dockerHandler.RemoveContainer)
+	protected("PATCH /api/containers/{id}/policy", dockerHandler.UpdateContainerPolicy)
 
 	server := &http.Server{
 		Addr:              appConfig.Address,

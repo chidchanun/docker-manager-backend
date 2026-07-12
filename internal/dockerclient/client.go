@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	containertype "github.com/moby/moby/api/types/container"
 	mobyclient "github.com/moby/moby/client"
 )
 
@@ -165,6 +166,10 @@ func (c *Client) ContainerKill(ctx context.Context, id string) error {
 func (c *Client) ContainerRemove(ctx context.Context, id string) error {
 	_, err := c.api.ContainerRemove(ctx, id, mobyclient.ContainerRemoveOptions{Force: false, RemoveVolumes: false})
 	return err
+}
+
+func (c *Client) ContainerUpdate(ctx context.Context, id string, resources *containertype.Resources, policy *containertype.RestartPolicy) (mobyclient.ContainerUpdateResult, error) {
+	return c.api.ContainerUpdate(ctx, id, mobyclient.ContainerUpdateOptions{Resources: resources, RestartPolicy: policy})
 }
 
 func (c *Client) ContainerLogs(

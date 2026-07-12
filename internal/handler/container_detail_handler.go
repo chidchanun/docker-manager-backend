@@ -413,6 +413,9 @@ func mapContainerDetailResponse(
 			Privileged:     container.HostConfig.Privileged,
 			ReadonlyRootFS: container.HostConfig.ReadonlyRootfs,
 			SharedMemory:   container.HostConfig.ShmSize,
+			MemoryBytes:    container.HostConfig.Memory,
+			NanoCPUs:       container.HostConfig.NanoCPUs,
+			PidsLimit:      container.HostConfig.PidsLimit,
 		}
 	}
 

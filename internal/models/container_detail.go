@@ -38,10 +38,13 @@ type ContainerHostDetailResponse struct {
 	RestartPolicy         string `json:"restart_policy"`
 	MaximumRestartRetries int    `json:"maximum_restart_retries"`
 
-	AutoRemove     bool  `json:"auto_remove"`
-	Privileged     bool  `json:"privileged"`
-	ReadonlyRootFS bool  `json:"readonly_root_fs"`
-	SharedMemory   int64 `json:"shared_memory_bytes"`
+	AutoRemove     bool   `json:"auto_remove"`
+	Privileged     bool   `json:"privileged"`
+	ReadonlyRootFS bool   `json:"readonly_root_fs"`
+	SharedMemory   int64  `json:"shared_memory_bytes"`
+	MemoryBytes    int64  `json:"memory_bytes"`
+	NanoCPUs       int64  `json:"nano_cpus"`
+	PidsLimit      *int64 `json:"pids_limit,omitempty"`
 }
 
 type ContainerPortBindingDetailResponse struct {
@@ -90,13 +93,13 @@ type ContainerDetailResponse struct {
 	ShortID string `json:"short_id"`
 	Name    string `json:"name"`
 
-	CreatedAt   string `json:"created_at"`
-	ImageID     string `json:"image_id"`
-	Path        string `json:"path"`
-	Arguments   []string `json:"arguments"`
-	Platform    string `json:"platform"`
-	Driver      string `json:"driver"`
-	RestartCount int   `json:"restart_count"`
+	CreatedAt    string   `json:"created_at"`
+	ImageID      string   `json:"image_id"`
+	Path         string   `json:"path"`
+	Arguments    []string `json:"arguments"`
+	Platform     string   `json:"platform"`
+	Driver       string   `json:"driver"`
+	RestartCount int      `json:"restart_count"`
 
 	State      ContainerStateDetailResponse  `json:"state"`
 	Config     ContainerConfigDetailResponse `json:"config"`
