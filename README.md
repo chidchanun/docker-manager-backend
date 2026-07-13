@@ -1,44 +1,8 @@
 # Docker Manager Backend
 
-REST API ภาษา Go สำหรับตรวจสอบและควบคุม Docker Engine พร้อม session-cookie authentication และ resource statistics
+Go REST API สำหรับควบคุม Docker Engine ผ่าน Docker Socket Proxy
 
-## ความสามารถ
-
-- Admin login ด้วย bcrypt hash และ HttpOnly session cookie
-- Docker host, container list, detail และ logs
-- Start, Stop และ Restart container
-- CPU, memory, block I/O และ network I/O จาก Docker Stats API
-
-## ความต้องการ
-
-- Go 1.24+
-- Docker Engine หรือ Docker Desktop
-- user ที่รัน API มีสิทธิ์เชื่อมต่อ Docker daemon
-
-## สร้าง Password Hash
-
-```powershell
-cd D:\DockerManager\backend
-go run .\cmd\hash-password\main.go
-```
-
-รหัสผ่านต้องยาว 12–72 bytes จากนั้นนำ bcrypt hash ไปใส่ `ADMIN_PASSWORD_HASH`
-
-## Environment
-
-สร้าง `.env` สำหรับ PowerShell:
-
-```powershell
-$env:APP_ADDR = "127.0.0.1:10000"
-$env:ADMIN_EMAIL = "admin@example.com"
-$env:ADMIN_PASSWORD_HASH = '<bcrypt-hash>'
-$env:SESSION_TTL = "12h"
-$env:SESSION_COOKIE_SECURE = "false"
-```
-
-`ADMIN_EMAIL` และ `ADMIN_PASSWORD_HASH` จำเป็นต้องกำหนด `SESSION_TTL` ต้องไม่น้อยกว่า 5 นาที และ production ผ่าน HTTPS ควรใช้ `SESSION_COOKIE_SECURE=true`
-
-## รัน
+## Development
 
 ```powershell
 cd D:\DockerManager\backend
@@ -46,32 +10,82 @@ Invoke-Expression (Get-Content .env -Raw)
 go run .\cmd\api\main.go
 ```
 
-## API
+Local default คือ `127.0.0.1:8080`; ไฟล์ development ปัจจุบันสามารถกำหนด `APP_ADDR=127.0.0.1:10000` เพื่อให้ Angular proxy เชื่อมต่อ
 
-| Method | Path | รายละเอียด |
+## Environment variables
+
+| Name | Required | Description |
 |---|---|---|
-| GET | `/api/health` | Health check (public) |
-| POST | `/api/auth/login` | Login (public) |
-| GET | `/api/auth/me` | Current session |
-| POST | `/api/auth/logout` | Logout |
-| GET | `/api/docker/info` | Docker host information |
-| GET | `/api/containers?all=true` | Container list |
-| GET | `/api/containers/stats` | Running container stats และค่ารวม |
-| GET | `/api/containers/{id}` | Container detail |
-| GET | `/api/containers/{id}/logs` | Logs |
-| POST | `/api/containers/{id}/start` | Start |
-| POST | `/api/containers/{id}/stop?timeout=10` | Stop |
-| POST | `/api/containers/{id}/restart?timeout=10` | Restart |
+| `ADMIN_EMAIL` | Yes | Admin login email |
+| `ADMIN_PASSWORD_HASH` | Yes | bcrypt hash, cost validated |
+| `APP_ADDR` | No | API address; default `127.0.0.1:8080` |
+| `SESSION_TTL` | No | Session TTL; default `12h`, minimum `5m` |
+| `SESSION_COOKIE_SECURE` | No | Use `true` behind HTTPS |
+| `REDIS_ADDR` | No | Redis address; blank uses in-memory sessions |
+| `DOCKER_HOST` | No | Docker daemon/socket proxy address |
+| `METRICS_ADDR` | No | Internal Prometheus address; default `127.0.0.1:9090` |
 
-นอกจาก health และ login ทุก endpoint ต้องส่ง session cookie
-
-## ทดสอบและ Build
+## Commands
 
 ```powershell
+go run .\cmd\hash-password\main.go
 go test ./...
 go build -o bin\docker-manager-api.exe .\cmd\api
 ```
 
-Session เก็บใน memory ดังนั้นเมื่อ restart API ผู้ใช้ต้อง login ใหม่ สำหรับ production ควรใช้ HTTPS reverse proxy และจำกัดสิทธิ์ Docker daemon
+## API
 
-เมื่อกำหนด `REDIS_ADDR` ระบบจะเก็บ session ใน Redis พร้อม TTL; ถ้าไม่กำหนดจะ fallback เป็น in-memory สำหรับ local development
+Public:
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/health` | Health check |
+| POST | `/api/auth/login` | Login |
+
+Authenticated:
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/auth/me` | Current user |
+| POST | `/api/auth/logout` | Logout |
+| GET | `/api/docker/info` | Docker host info |
+| GET | `/api/containers?all=true` | Containers |
+| GET | `/api/containers/stats` | Runtime stats and totals |
+| GET | `/api/containers/{id}` | Container detail |
+| GET | `/api/containers/{id}/logs` | Log snapshot |
+| GET | `/api/containers/{id}/logs/stream` | SSE Live Logs |
+| POST | `/api/containers/{id}/start` | Start |
+| POST | `/api/containers/{id}/stop?timeout=10` | Stop |
+| POST | `/api/containers/{id}/restart?timeout=10` | Restart |
+| POST | `/api/containers/{id}/pause` | Pause |
+| POST | `/api/containers/{id}/unpause` | Unpause |
+| POST | `/api/containers/{id}/kill` | SIGKILL |
+| DELETE | `/api/containers/{id}` | Remove without volumes/force |
+| PATCH | `/api/containers/{id}/policy` | Restart/resource policy |
+| GET | `/api/audit?limit=100` | Redis Stream audit entries |
+
+Metrics server exposes `/metrics` on `METRICS_ADDR`; it is not mounted on the public API mux
+
+## Container policy payload
+
+```json
+{
+  "restart_policy": "unless-stopped",
+  "maximum_retry_count": 0,
+  "cpus": 2,
+  "memory_bytes": 4294967296,
+  "pids_limit": 500
+}
+```
+
+MemorySwap is updated with Memory to satisfy Docker and prevent additional swap allowance
+
+## Security
+
+- Same-origin protection for unsafe methods
+- Secure/HttpOnly/SameSite session cookie
+- Login rate limiting
+- Secret redaction from container command arguments
+- Persistent audit through Redis Stream
+- Security headers and bounded request bodies
+- Docker access restricted through Socket Proxy
